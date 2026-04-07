@@ -187,7 +187,49 @@ def get_due_checkins(
     current_date: date,
     top_n: int,
 ) -> list[DueCheckin]:
-    raise NotImplementedError
+    """Return up to top_n due check-ins: filters, then sort by priority desc, member_id asc.
+
+    Skips everyone when current_date is a holiday. Otherwise keeps members with a non-blank
+    preferred channel who have no contact record or last contact at least 7 days ago (UTC date).
+    """
+    holiday_calendar_dates = set(holidays)
+    if current_date in holiday_calendar_dates:
+        return []
+
+    members_passing_filters: list[Member] = []
+    for member in members:
+        if member.preferred_channel.strip() == "":
+            continue
+        if member.last_contact_utc is None:
+            members_passing_filters.append(member)
+            continue
+        last_contact_calendar_date = member._last_contact_utc_date()
+        days_since_last_contact = (
+            current_date - last_contact_calendar_date
+        ).days
+        if days_since_last_contact >= 7:
+            members_passing_filters.append(member)
+
+    members_with_scores: list[tuple[Member, float]] = []
+    for member in members_passing_filters:
+        priority_score = member.calculate_priority(current_date)
+        members_with_scores.append((member, priority_score))
+
+    members_with_scores.sort(
+        key=lambda item: (-item[1], item[0].member_id),
+    )
+
+    due_checkins: list[DueCheckin] = []
+    for member, priority_score in members_with_scores[:top_n]:
+        due_checkins.append(
+            DueCheckin(
+                member_id=member.member_id,
+                full_name=member.full_name,
+                priority_score=priority_score,
+                recommended_window=member.get_recommended_window(),
+            )
+        )
+    return due_checkins
 
 
 def parse_args(argv: list[str] | None = None) -> Any:
