@@ -98,8 +98,38 @@ def load_members(path: str) -> list[Member]:
     return members
 
 
+def _parse_utc_instant_from_iso_string(iso_timestamp: str) -> datetime:
+    """Parse an ISO-8601 instant; trailing Z is treated as UTC (stdlib-friendly)."""
+    normalized = iso_timestamp.strip()
+    if normalized.endswith("Z"):
+        normalized = normalized[:-1] + "+00:00"
+    contact_instant = datetime.fromisoformat(normalized)
+    if contact_instant.tzinfo is None:
+        contact_instant = contact_instant.replace(tzinfo=timezone.utc)
+    return contact_instant.astimezone(timezone.utc)
+
+
 def load_last_contacts(path: str) -> dict[str, tuple[datetime, str]]:
-    raise NotImplementedError
+    """Map member_id to (last_contact_utc aware UTC, outcome).
+
+    If a member_id appears more than once, the row with the latest last_contact_utc wins.
+    """
+    contacts_by_member_id: dict[str, tuple[datetime, str]] = {}
+    with open(path, encoding="utf-8", newline="") as csv_file:
+        reader = csv.DictReader(csv_file)
+        for row in reader:
+            member_id = str(row["member_id"]).strip()
+            try:
+                contact_instant = _parse_utc_instant_from_iso_string(
+                    str(row["last_contact_utc"])
+                )
+            except (KeyError, ValueError) as error:
+                raise ValueError(f"Invalid last_contact_utc in row: {row!r}") from error
+            outcome = str(row["outcome"]).strip()
+            existing_contact = contacts_by_member_id.get(member_id)
+            if existing_contact is None or contact_instant > existing_contact[0]:
+                contacts_by_member_id[member_id] = (contact_instant, outcome)
+    return contacts_by_member_id
 
 
 def load_holidays(path: str) -> list[date]:
