@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import csv
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timezone
 from typing import Any
 
@@ -159,7 +159,26 @@ def merge_contacts(
     members: list[Member],
     contacts: dict[str, tuple[datetime, str]],
 ) -> list[Member]:
-    raise NotImplementedError
+    """Return members with last_contact_utc and last_outcome set when present in contacts.
+
+    Members whose member_id is missing from contacts keep last_contact_utc and last_outcome
+    as None.
+    """
+    merged_members: list[Member] = []
+    for member in members:
+        contact_record = contacts.get(member.member_id)
+        if contact_record is None:
+            merged_members.append(member)
+            continue
+        last_contact_instant, last_outcome = contact_record
+        merged_members.append(
+            replace(
+                member,
+                last_contact_utc=last_contact_instant,
+                last_outcome=last_outcome,
+            )
+        )
+    return merged_members
 
 
 def get_due_checkins(
