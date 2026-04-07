@@ -1,9 +1,9 @@
-"""Clique check-in CLI — domain, loaders, and CLI (TDD stub: raises until implemented)."""
+"""Clique check-in CLI — domain, loaders, and CLI."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any
 
 
@@ -25,11 +25,46 @@ class Member:
     last_contact_utc: datetime | None = None
     last_outcome: str | None = None
 
+    def _last_contact_utc_date(self) -> date | None:
+        """Return the UTC calendar date of the last contact, or None if unknown.
+
+        Naive datetimes are interpreted as UTC to match ISO timestamps ending in Z.
+        """
+        if self.last_contact_utc is None:
+            return None
+        last_contact_instant = self.last_contact_utc
+        if last_contact_instant.tzinfo is None:
+            last_contact_instant = last_contact_instant.replace(tzinfo=timezone.utc)
+        return last_contact_instant.astimezone(timezone.utc).date()
+
     def calculate_priority(self, current_date: date) -> float:
-        raise NotImplementedError
+        """Compute priority score: integer risk/outcome bonuses plus days_since_last_contact / 7.
+
+        With no contact record, the fractional term uses a 365-day default gap (see README).
+        """
+        risk_flags_set = set(self.risk_flags)
+        integer_bonus_sum = 0.0
+        if "recent_discharge" in risk_flags_set:
+            integer_bonus_sum += 3.0
+        if "lives_alone" in risk_flags_set:
+            integer_bonus_sum += 2.0
+        if self.age >= 80:
+            integer_bonus_sum += 1.0
+        if self.last_contact_utc is not None and self.last_outcome == "no_answer":
+            integer_bonus_sum += 1.0
+
+        last_contact_calendar_date = self._last_contact_utc_date()
+        if last_contact_calendar_date is None:
+            days_since_last_contact = 365
+        else:
+            days_since_last_contact = (current_date - last_contact_calendar_date).days
+
+        fractional_term = days_since_last_contact / 7.0
+        return integer_bonus_sum + fractional_term
 
     def get_recommended_window(self) -> str:
-        raise NotImplementedError
+        """Return call window label: morning for age 80+, otherwise afternoon."""
+        return "morning" if self.age >= 80 else "afternoon"
 
 
 def load_members(path: str) -> list[Member]:
