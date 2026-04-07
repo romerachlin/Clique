@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import json
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import Any
@@ -133,7 +134,25 @@ def load_last_contacts(path: str) -> dict[str, tuple[datetime, str]]:
 
 
 def load_holidays(path: str) -> list[date]:
-    raise NotImplementedError
+    """Load a JSON file containing a list of ISO calendar dates (YYYY-MM-DD strings).
+
+    Raises ValueError if the top-level JSON is not a list of date strings.
+    """
+    with open(path, encoding="utf-8") as json_file:
+        raw_payload = json.load(json_file)
+    if not isinstance(raw_payload, list):
+        raise ValueError(
+            f"Expected a JSON array of holiday date strings, got {type(raw_payload)!r}"
+        )
+    holiday_dates: list[date] = []
+    for holiday_index, raw_date_string in enumerate(raw_payload):
+        if not isinstance(raw_date_string, str):
+            raise ValueError(
+                f"Holiday at index {holiday_index} must be a string, "
+                f"got {type(raw_date_string)!r}"
+            )
+        holiday_dates.append(date.fromisoformat(raw_date_string.strip()))
+    return holiday_dates
 
 
 def merge_contacts(
