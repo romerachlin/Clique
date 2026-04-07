@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import argparse
 import csv
 import json
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timezone
-from typing import Any
+from pathlib import Path
 
 
 @dataclass
@@ -232,12 +233,83 @@ def get_due_checkins(
     return due_checkins
 
 
-def parse_args(argv: list[str] | None = None) -> Any:
-    raise NotImplementedError
+def _parse_iso_date_argument(value: str) -> date:
+    return datetime.strptime(value.strip(), "%Y-%m-%d").date()
+
+
+def _parse_top_argument(value: str) -> int:
+    parsed_top = int(value)
+    if parsed_top < 1:
+        raise argparse.ArgumentTypeError("top must be >= 1")
+    return parsed_top
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse CLI flags: --top (default 5), optional --mock-date, optional --data-dir."""
+    parser = argparse.ArgumentParser(
+        description="List members due for check-in (sorted by priority).",
+    )
+    parser.add_argument(
+        "--top",
+        type=_parse_top_argument,
+        default=5,
+        metavar="N",
+        help="Maximum number of rows to print (default: 5).",
+    )
+    parser.add_argument(
+        "--mock-date",
+        dest="mock_date",
+        type=_parse_iso_date_argument,
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="Use this calendar date instead of today's UTC date.",
+    )
+    parser.add_argument(
+        "--data-dir",
+        default="data",
+        help="Folder with members.csv, last_contacts.csv, holidays.json (default: data).",
+    )
+    return parser.parse_args(argv)
+
+
+def _print_due_checkins_table(due_checkins: list[DueCheckin]) -> None:
+    """Print due check-ins as aligned columns on stdout."""
+    column_headers = (
+        f"{'member_id':<10}"
+        f"{'full_name':<24}"
+        f"{'priority_score':>16}  "
+        f"{'recommended_window':<18}"
+    )
+    print(column_headers)
+    print("-" * min(len(column_headers), 88))
+    for due_row in due_checkins:
+        print(
+            f"{due_row.member_id:<10}"
+            f"{due_row.full_name:<24}"
+            f"{due_row.priority_score:>16.2f}  "
+            f"{due_row.recommended_window:<18}"
+        )
 
 
 def main(argv: list[str] | None = None) -> None:
-    raise NotImplementedError
+    """Load data files, compute due check-ins for the chosen date, print a table."""
+    parsed_arguments = parse_args(argv)
+    data_directory = Path(parsed_arguments.data_dir)
+    members = load_members(str(data_directory / "members.csv"))
+    contacts = load_last_contacts(str(data_directory / "last_contacts.csv"))
+    holidays = load_holidays(str(data_directory / "holidays.json"))
+    merged_members = merge_contacts(members, contacts)
+    if parsed_arguments.mock_date is not None:
+        current_calendar_date = parsed_arguments.mock_date
+    else:
+        current_calendar_date = datetime.now(timezone.utc).date()
+    due_checkins = get_due_checkins(
+        merged_members,
+        holidays,
+        current_calendar_date,
+        parsed_arguments.top,
+    )
+    _print_due_checkins_table(due_checkins)
 
 
 if __name__ == "__main__":
