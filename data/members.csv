@@ -1,0 +1,5 @@
+member_id,full_name,age,preferred_channel,risk_flags
+1,Ruth Cohen,82,call,lives_alone
+2,Joseph Levi,76,sms,
+3,Sarah Adler,90,whatsapp,lives_alone;recent_discharge
+4,Danny Israel,68,call,

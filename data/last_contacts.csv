@@ -1,0 +1,5 @@
+member_id,last_contact_utc,outcome
+1,2025-10-30T08:00:00Z,ok
+2,2025-10-28T17:00:00Z,no_answer
+3,2025-10-27T09:00:00Z,escalate
+4,2025-10-20T10:00:00Z,ok
