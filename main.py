@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import Any
@@ -68,7 +69,33 @@ class Member:
 
 
 def load_members(path: str) -> list[Member]:
-    raise NotImplementedError
+    """Read members.csv-style input: semicolon-separated risk_flags; empty flag cells allowed.
+
+    Raises ValueError if a row has a missing column or a non-integer age.
+    """
+    members: list[Member] = []
+    with open(path, encoding="utf-8", newline="") as csv_file:
+        reader = csv.DictReader(csv_file)
+        for row in reader:
+            raw_risk_flags_cell = row.get("risk_flags") or ""
+            risk_flag_tokens = [
+                token.strip() for token in raw_risk_flags_cell.split(";")
+            ]
+            risk_flags = [token for token in risk_flag_tokens if token]
+            try:
+                age = int(str(row["age"]).strip())
+            except (KeyError, ValueError) as error:
+                raise ValueError(f"Invalid or missing age in row: {row!r}") from error
+            members.append(
+                Member(
+                    member_id=str(row["member_id"]).strip(),
+                    full_name=str(row["full_name"]).strip(),
+                    age=age,
+                    preferred_channel=str(row["preferred_channel"]).strip(),
+                    risk_flags=risk_flags,
+                )
+            )
+    return members
 
 
 def load_last_contacts(path: str) -> dict[str, tuple[datetime, str]]:
