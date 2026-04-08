@@ -37,6 +37,34 @@ The program expects:
 
 inside the data directory (see the sample files under `data/`).
 
+## How it works (end to end)
+
+1. **Parse CLI and pick the run date** — `parse_args` reads `--top`, `--mock-date`, and `--data-dir`. The calendar date used for all logic is either `--mock-date` or **today in UTC** (`datetime.now(timezone.utc).date()`).
+
+2. **Load inputs** — From the data directory: `members.csv` (member profiles), `last_contacts.csv` (latest contact per member), and `holidays.json` (holiday dates).
+
+3. **Merge contacts into members** — For each member, if their `member_id` appears in the contacts data, attach `last_contact_utc` and `last_outcome`; otherwise leave those fields unset (no merged contact row).
+
+4. **Build the due list** — `get_due_checkins` runs on the merged list and the chosen date:
+   - If that date is a **holiday**, the result is **empty** (no rows).
+   - Otherwise keep members who pass the due rules: non-blank `preferred_channel`, and either **no** last contact or **at least seven** full calendar days since the last contact’s **UTC date**.
+   - For each surviving member, compute a **priority score**, then sort by **priority descending** and **`member_id` ascending**, and take the first **`--top`** rows.
+   - Each row gets a **recommended window**: morning if age ≥ 80, otherwise afternoon.
+
+5. **Print** — A fixed-width table is written to stdout: `member_id`, `full_name`, `priority_score`, `recommended_window`.
+
+Finer points (ISO timestamps with `Z`, duplicate contact rows, no-contact scoring, invalid `age`, and CSV details) are spelled out under [Assumptions and behavior](#assumptions-and-behavior) below.
+
+```mermaid
+flowchart LR
+  parseArgs[ParseArgs]
+  loadFiles[LoadFiles]
+  mergeContacts[MergeContacts]
+  dueCheckins[get_due_checkins]
+  printTable[PrintTable]
+  parseArgs --> loadFiles --> mergeContacts --> dueCheckins --> printTable
+```
+
 ## Run tests
 
 ```bash
